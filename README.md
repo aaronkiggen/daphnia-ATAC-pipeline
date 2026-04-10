@@ -33,3 +33,5 @@ Additional quality control, formatting, and intermediate test scripts used durin
 
 ## Execution
 Scripts are numbered in their required execution order. Environmental setup (`01_Environment_Setup`) must be successfully completed before executing jobs in the SLURM HPC environment.
+### Collapsed Ortholog Hierarchy (`Phase 4`)
+The pipeline natively searches for TFs via mammalian motif databases (e.g. `FOXI1`, `FOXM1`). Because these mammalian variants evolved from single ancestral genes, Phase 4 deduplicates the redundant models and statistically collapses them back into clean, unique *Daphnia* Master Regulator gene IDs.
