@@ -44,9 +44,9 @@ for (tier in tiers) {
     summarise(target_count = n()) %>%
     arrange(desc(target_count))
   
-  top_hubs <- head(hub_counts$collapsed_source, 5)
-  cat("Top 5 Collapsed DEG Hubs:\n")
-  print(hub_counts[1:5, ])
+  top_hubs <- hub_counts$collapsed_source
+  cat("All Collapsed DEG Hubs:\n")
+  print(hub_counts)
   
   # 4. Filter Edges for only Top 5 Hubs
   top_edges <- collapsed_edges %>% filter(collapsed_source %in% top_hubs)
@@ -70,8 +70,8 @@ for (tier in tiers) {
     select(node_id, node_type, lfc, padj)
   
   # Export final files WITHOUT quotes to fix Cytoscape strict matching
-  write.csv(top_edges, file.path(output_dir, paste0("Cytoscape_Collapsed_Edges_Top5_", tier, ".csv")), row.names = FALSE, quote = FALSE)
-  write.csv(nodes, file.path(output_dir, paste0("Cytoscape_Collapsed_Nodes_Top5_", tier, ".csv")), row.names = FALSE, quote = FALSE)
+  write.csv(top_edges, file.path(output_dir, paste0("Cytoscape_Collapsed_Edges_All_DEG_", tier, ".csv")), row.names = FALSE, quote = FALSE)
+  write.csv(nodes, file.path(output_dir, paste0("Cytoscape_Collapsed_Nodes_All_DEG_", tier, ".csv")), row.names = FALSE, quote = FALSE)
   cat("Exported Collapsed Cytoscape Networks!\n")
 }
 cat("\n==== Phase 4 Complete! ====\n")
