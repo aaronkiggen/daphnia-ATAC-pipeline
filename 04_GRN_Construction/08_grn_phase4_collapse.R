@@ -24,26 +24,29 @@ for (tier in tiers) {
                                      tf_name))
   
   # 2. Collapse the redundant edges by taking the maximum biological edge score
+  # We also prioritize keeping known "activation"/"repression" labels over "unmapped" during the collapse
   collapsed_edges <- edges %>%
     group_by(collapsed_source, target = gene_id) %>%
+    arrange(desc(direction != "unmapped"), desc(biological_edge_score)) %>%
     summarise(
       weight = max(biological_edge_score, na.rm = TRUE),
-      interaction = first(direction), # Keep activation/repression
-      # Concatenate the original mammalian names just for reference metadata
+      interaction = first(direction), # Now grabs activation/repression over unmapped
       original_motifs = paste(unique(tf_name), collapse = "|"),
       .groups = "drop"
     ) %>%
-    # Normalize weights for Cytoscape (scale 0-1)
     mutate(norm_weight = weight / max(weight))
   
-  # 3. Identify the true Top Collapsed Hubs (Most Targets)
+  # 3. Identify the true Top Collapsed Hubs (MUST BE DEGs!)
+  deg_tfs <- edges %>% filter(tf_is_deg == TRUE) %>% pull(collapsed_source) %>% unique()
+  
   hub_counts <- collapsed_edges %>%
+    filter(collapsed_source %in% deg_tfs) %>%
     group_by(collapsed_source) %>%
     summarise(target_count = n()) %>%
     arrange(desc(target_count))
   
   top_hubs <- head(hub_counts$collapsed_source, 5)
-  cat("Top 5 Collapsed Hubs:\n")
+  cat("Top 5 Collapsed DEG Hubs:\n")
   print(hub_counts[1:5, ])
   
   # 4. Filter Edges for only Top 5 Hubs
