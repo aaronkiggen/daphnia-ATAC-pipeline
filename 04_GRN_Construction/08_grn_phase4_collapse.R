@@ -51,6 +51,10 @@ for (tier in tiers) {
   # 4. Filter Edges for only Top 5 Hubs
   top_edges <- collapsed_edges %>% filter(collapsed_source %in% top_hubs)
   
+  # NEW: Tag edges between TFs
+  top_edges <- top_edges %>%
+    mutate(edge_type = ifelse(target %in% deg_tfs, "TF-TF", "TF-Target"))
+  
   # 5. Create Cytoscape Node Table
   sources <- data.frame(node_id = unique(top_edges$collapsed_source), node_type = "Collapsed Transcription Factor")
   targets <- data.frame(node_id = unique(top_edges$target), node_type = "Target Gene")
