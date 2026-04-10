@@ -17,14 +17,13 @@ for (tier in tiers) {
   
   edges <- read.csv(edge_file, stringsAsFactors = FALSE)
   
-  # 1. Create a true collapsed TF source name: Map strictly to Daphnia gene ID if available
+  # 1. Create a true collapsed TF source name
   edges <- edges %>%
     mutate(collapsed_source = ifelse(!is.na(daphnia_gene_id) & daphnia_gene_id != "NA", 
                                      daphnia_gene_id, 
                                      tf_name))
   
-  # 2. Collapse the redundant edges by taking the maximum biological edge score
-  # We also prioritize keeping known "activation"/"repression" labels over "unmapped" during the collapse
+  # 2. Collapse the redundant edges
   collapsed_edges <- edges %>%
     group_by(collapsed_source, target = gene_id) %>%
     arrange(desc(direction != "unmapped"), desc(biological_edge_score)) %>%
@@ -66,9 +65,9 @@ for (tier in tiers) {
     mutate(lfc = target_lfc, padj = target_padj) %>%
     select(node_id, node_type, lfc, padj)
   
-  # Export final files
-  write.csv(top_edges, file.path(output_dir, paste0("Cytoscape_Collapsed_Edges_Top5_", tier, ".csv")), row.names = FALSE)
-  write.csv(nodes, file.path(output_dir, paste0("Cytoscape_Collapsed_Nodes_Top5_", tier, ".csv")), row.names = FALSE)
+  # Export final files WITHOUT quotes to fix Cytoscape strict matching
+  write.csv(top_edges, file.path(output_dir, paste0("Cytoscape_Collapsed_Edges_Top5_", tier, ".csv")), row.names = FALSE, quote = FALSE)
+  write.csv(nodes, file.path(output_dir, paste0("Cytoscape_Collapsed_Nodes_Top5_", tier, ".csv")), row.names = FALSE, quote = FALSE)
   cat("Exported Collapsed Cytoscape Networks!\n")
 }
 cat("\n==== Phase 4 Complete! ====\n")
