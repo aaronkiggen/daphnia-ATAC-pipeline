@@ -42,7 +42,7 @@ for (tier in tiers) {
   tf_stats <- edges %>%
     group_by(collapsed_source) %>%
     summarise(
-      target_count = n(),
+      target_count = n_distinct(gene_id),
       tf_is_deg = first(tf_is_deg),
       avg_motif_score = median(motif_score, na.rm=TRUE),
       max_motif_score = ifelse(all(is.na(motif_score)), NA, max(motif_score, na.rm=TRUE)),
@@ -76,7 +76,7 @@ for (tier in tiers) {
     filter(!is.na(target_padj) & target_padj < 0.05) %>%
     group_by(collapsed_source) %>%
     summarise(
-      deg_target_count = n(),
+      deg_target_count = n_distinct(gene_id),
       median_motif_score_to_degs = median(motif_score, na.rm=TRUE),
       highest_motif_score_to_degs = ifelse(all(is.na(motif_score)), NA, max(motif_score, na.rm=TRUE)),
       .groups="drop"
