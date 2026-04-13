@@ -19,7 +19,15 @@ tf_map <- inner_join(motif_names, jaspar_meta %>% select(matrix_id, uniprot_ids)
 blast_out <- file.path(base_dir, "tf_blastp_daphnia.txt")
 blast_res <- read.table(blast_out, sep="", col.names=c("qseqid", "sseqid", "pident", "evalue", "bitscore"), stringsAsFactors=FALSE)
 blast_res$uniprot_accession <- sapply(strsplit(blast_res$qseqid, "\\|"), function(x) x[2])
-blast_res$daphnia_id <- str_extract(blast_res$sseqid, "(OUZ56_[0-9]+)")
+
+# Link SSEQID (KAK IDs) to Daphnia OUZ56 IDs using the headers
+headers <- readLines(file.path(base_dir, "daphnia_headers.txt"))
+header_df <- data.frame(full_header = headers, stringsAsFactors=FALSE)
+header_df$sseqid <- str_extract(header_df$full_header, "^>([^ ]+)", group=1)
+header_df$daphnia_id <- str_extract(header_df$full_header, "(OUZ56_[0-9]+)")
+header_df <- header_df %>% filter(!is.na(daphnia_id))
+
+blast_res <- left_join(blast_res, header_df, by="sseqid") %>% filter(!is.na(daphnia_id))
 
 for (tier in tiers) {
   cat("\n--- Validating Top 20 TFs for", tier, "tier ---\n")
