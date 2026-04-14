@@ -41,13 +41,19 @@ bedtools slop -i DEGs.bed -g $CHROM_SIZES -b 50000 > DEG_distal.bed
 
 echo "Step 2: Intersecting..."
 bedtools intersect -a $CONSENSUS -b DEG_promoters.bed -u > peaks_near_DEG_promoters.bed
-bedtools intersect -a $CONSENSUS -b DEG_promoters.bed -wo > peak_DEG_overlaps_promoter.txt
 
-bedtools intersect -a $CONSENSUS -b DEG_proximal.bed -u > peaks_near_DEG_proximal.bed
-bedtools intersect -a $CONSENSUS -b DEG_proximal.bed -wo > peak_DEG_overlaps_proximal.txt
+bedtools intersect -a $CONSENSUS -b DEG_proximal.bed -u > all_proximal_peaks.bed
+# Filter out peaks that are already assigned to promoters
+bedtools intersect -v -a all_proximal_peaks.bed -b peaks_near_DEG_promoters.bed > peaks_near_DEG_proximal.bed
 
-bedtools intersect -a $CONSENSUS -b DEG_distal.bed -u > peaks_near_DEG_distal.bed
-bedtools intersect -a $CONSENSUS -b DEG_distal.bed -wo > peak_DEG_overlaps_distal.txt
+bedtools intersect -a $CONSENSUS -b DEG_distal.bed -u > all_distal_peaks.bed
+# Filter out peaks that are already assigned to proximal (which includes promoters)
+bedtools intersect -v -a all_distal_peaks.bed -b all_proximal_peaks.bed > peaks_near_DEG_distal.bed
+
+# Get coordinate overlaps (from the final filtered sets)
+bedtools intersect -a peaks_near_DEG_promoters.bed -b DEG_promoters.bed -wo > peak_DEG_overlaps_promoter.txt
+bedtools intersect -a peaks_near_DEG_proximal.bed -b DEG_proximal.bed -wo > peak_DEG_overlaps_proximal.txt
+bedtools intersect -a peaks_near_DEG_distal.bed -b DEG_distal.bed -wo > peak_DEG_overlaps_distal.txt
 
 echo "Step 3: Extracting sequences..."
 bedtools getfasta -fi $FASTA -bed peaks_near_DEG_promoters.bed -name > peaks_near_DEG_promoters.fa

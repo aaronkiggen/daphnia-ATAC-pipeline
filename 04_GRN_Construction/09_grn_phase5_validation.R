@@ -5,7 +5,7 @@ library(tidyr)
 library(stringr)
 
 tiers <- c("promoter", "proximal", "distal")
-output_dir <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output"
+output_dir <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 base_dir <- "/scratch/leuven/354/vsc35429/ATAC/TF_analysis"
 
 motif_names <- read.table("/scratch/leuven/354/vsc35429/ATAC/motif_databases/motif_to_TF_name.txt", sep="", header=FALSE, col.names=c("matrix_id", "tf_name"), stringsAsFactors=FALSE)
@@ -30,15 +30,15 @@ header_df <- header_df %>% filter(!is.na(daphnia_id))
 blast_res <- left_join(blast_res, header_df, by="sseqid") %>% filter(!is.na(daphnia_id))
 
 for (tier in tiers) {
-  cat("\n--- Validating Top 20 TFs for", tier, "tier ---\n")
-  edge_file <- file.path(output_dir, paste0("GRN_Biological_Edges_All_", tier, ".csv"))
+  cat("\n--- Validating All TFs for", tier, "tier ---\n")
+  edge_file <- file.path(output_dir, paste0("02_Filtered_Bio_Network_Edges_All_", tier, ".csv"))
   if (!file.exists(edge_file)) next
   
   edges <- read.csv(edge_file, stringsAsFactors = FALSE)
   edges <- edges %>%
     mutate(collapsed_source = ifelse(!is.na(daphnia_gene_id) & daphnia_gene_id != "NA", daphnia_gene_id, tf_name))
   
-  # Identify top 20 TFs (DEG TFs first, then by target count)
+  # Identify all TFs (DEG TFs first, then by target count)
   tf_stats <- edges %>%
     group_by(collapsed_source) %>%
     summarise(
@@ -48,12 +48,11 @@ for (tier in tiers) {
       max_motif_score = ifelse(all(is.na(motif_score)), NA, max(motif_score, na.rm=TRUE)),
       .groups = "drop"
     ) %>%
-    arrange(desc(tf_is_deg), desc(target_count)) %>%
-    slice_head(n = 20)
+    arrange(desc(tf_is_deg), desc(target_count))
     
   # Link to BLAST metrics
   # For each TF, it came from some tf_name(s). What are the average BLAST metrics?
-  # We extract the edges for these top 20 sources to see which Jaspar tfs map to them
+  # We extract the edges for these sources to see which Jaspar tfs map to them
   hub_edges <- edges %>% filter(collapsed_source %in% tf_stats$collapsed_source)
   
   tf_blast_info <- hub_edges %>% 
@@ -87,7 +86,7 @@ for (tier in tiers) {
     left_join(deg_targets, by="collapsed_source") %>%
     arrange(desc(tf_is_deg), desc(target_count))
     
-  write.csv(final_validation, file.path(output_dir, paste0("Validation_Top20_TFs_", tier, ".csv")), row.names=FALSE, quote=FALSE)
-  cat("Wrote Validation_Top20_TFs_", tier, ".csv\n", sep="")
+  write.csv(final_validation, file.path(output_dir, paste0("05_Ortholog_Validation_All_TFs_", tier, ".csv")), row.names=FALSE, quote=FALSE)
+  cat("Wrote 05_Ortholog_Validation_All_TFs_", tier, ".csv\n", sep="")
   print(head(final_validation, 5))
 }

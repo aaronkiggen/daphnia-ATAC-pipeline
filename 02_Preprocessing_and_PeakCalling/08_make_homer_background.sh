@@ -36,14 +36,20 @@ awk -v OFS='\t' '{
 
 # Generate background windows
 bedtools slop -i nonDEGs.bed -g $CHROM_SIZES -l 2000 -r 2000 -s > nonDEG_promoters.bed
-bedtools slop -i nonDEGs.bed -g $CHROM_SIZES -l 5000 -r 2000 -s > nonDEG_proximal.bed
-bedtools slop -i nonDEGs.bed -g $CHROM_SIZES -b 50000 > nonDEG_distal.bed
+bedtools slop -i nonDEGs.bed -g $CHROM_SIZES -l 5000 -r 5000 -s > nonDEG_proximal.bed
+bedtools slop -i nonDEGs.bed -g $CHROM_SIZES -b 20000 > nonDEG_distal.bed
 
 echo "Step 2: Intersecting and thoroughly filtering out DEG overlaps..."
 # Find peaks near Non-DEGs, but use -v against DEG windows to ensure they are strictly background!
 bedtools intersect -a $CONSENSUS -b nonDEG_promoters.bed -u | bedtools intersect -a - -b DEG_promoters.bed -v > peaks_near_NON_DEG_promoters.bed
-bedtools intersect -a $CONSENSUS -b nonDEG_proximal.bed -u | bedtools intersect -a - -b DEG_proximal.bed -v > peaks_near_NON_DEG_proximal.bed
-bedtools intersect -a $CONSENSUS -b nonDEG_distal.bed -u | bedtools intersect -a - -b DEG_distal.bed -v > peaks_near_NON_DEG_distal.bed
+
+# Get all proximal non-DEG peaks, subtract DEG proximal peaks, AND subtract non-DEG promoter peaks
+bedtools intersect -a $CONSENSUS -b nonDEG_proximal.bed -u | bedtools intersect -a - -b DEG_proximal.bed -v > all_NON_DEG_proximal_peaks.bed
+bedtools intersect -v -a all_NON_DEG_proximal_peaks.bed -b peaks_near_NON_DEG_promoters.bed > peaks_near_NON_DEG_proximal.bed
+
+# Get all distal non-DEG peaks, subtract DEG distal peaks, AND subtract non-DEG proximal peaks (which includes promoters)
+bedtools intersect -a $CONSENSUS -b nonDEG_distal.bed -u | bedtools intersect -a - -b DEG_distal.bed -v > all_NON_DEG_distal_peaks.bed
+bedtools intersect -v -a all_NON_DEG_distal_peaks.bed -b all_NON_DEG_proximal_peaks.bed > peaks_near_NON_DEG_distal.bed
 
 echo "Step 3: Extracting background sequences..."
 bedtools getfasta -fi $FASTA -bed peaks_near_NON_DEG_promoters.bed -name > peaks_near_NON_DEG_promoters.fa
