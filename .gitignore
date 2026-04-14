@@ -1,0 +1,6 @@
+*.out
+*.log
+stderr*.txt
+stdout*.txt
+04_GRN_Construction/fix_quotes.sh
+04_GRN_Construction/test_val.R
