@@ -63,10 +63,11 @@ homer_all <- homer_custom %>%
   ungroup()
 
 homer_enriched <- homer_all %>%
-  filter(qval < 0.05, pct_target_num > 5) %>%
+  filter(pval <= 0.01, pct_target_num > 5) %>%
+  mutate(significance_level = ifelse(qval < 0.05, "qval < 0.05", "pval <= 0.01")) %>%
   arrange(log_pval)
 
-cat("HOMER enriched TFs (q<0.05, >5% peaks):", nrow(homer_enriched), "\n")
+cat("HOMER enriched TFs (p <= 0.01, >5% peaks):", nrow(homer_enriched), "\n")
 write.csv(homer_enriched, file.path(OUTPUT_DIR, "01_Enriched_Motifs_TFs_promoter.csv"), row.names=FALSE)
 
 # ── FIMO & TF Mapping ───────────────────────────────────────────────
