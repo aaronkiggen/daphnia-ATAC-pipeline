@@ -11,12 +11,13 @@ library(tidyr)
 
 BASE_DIR  <- "/scratch/leuven/354/vsc35429/ATAC/TF_analysis"
 setwd(BASE_DIR)
+OUTPUT_DIR <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 
 cat("==== Starting Phase 2: Biological GRN Integration ====\n")
 
 # 1. READ INPUTS
 cat("Loading Phase 1 Structural Network and RNA-seq data...\n")
-grn_edges_raw <- read.csv("GRN_edges_promoter.csv", stringsAsFactors = FALSE)
+grn_edges_raw <- read.csv(file.path(OUTPUT_DIR, "01_Base_Motif_Network_Edges_promoter.csv"), stringsAsFactors = FALSE)
 degs <- read.csv("DEGs.csv", stringsAsFactors = FALSE)
 
 # 2. SET UP ORTHOLOGUE MAPPING
@@ -118,9 +119,9 @@ cat("Promoter-bound active edges (Tier 1):  ", nrow(clean_grn), "\n")
 cat("Unique active Regulators found:        ", length(unique(clean_grn$tf_name)), "\n")
 cat("MASTER REGULATORS (TF is a DEG):       ", length(unique(master_regulators_grn$tf_name)), " (representing", length(unique(master_regulators_grn$daphnia_gene_id)), "Daphnia DEG TFs)\n")
 
-write.csv(biological_grn, "GRN_Biological_Edges_All_promoter.csv", row.names = FALSE)
-write.csv(clean_grn, "GRN_Biological_Edges_Tier1_Only_promoter.csv", row.names = FALSE)
-write.csv(master_regulators_grn, "GRN_Master_Regulators_promoter.csv", row.names = FALSE)
+write.csv(biological_grn, file.path(OUTPUT_DIR, "02_Filtered_Bio_Network_Edges_All_promoter.csv"), row.names = FALSE)
+write.csv(clean_grn, file.path(OUTPUT_DIR, "02_Filtered_Bio_Network_Edges_HighConf_promoter.csv"), row.names = FALSE)
+write.csv(master_regulators_grn, file.path(OUTPUT_DIR, "02_Network_Centrality_Scores_promoter.csv"), row.names = FALSE)
 
 # 5. SUMMARIZE ACTIVE HUBS
 active_hubs <- clean_grn %>%
@@ -131,15 +132,14 @@ active_hubs <- clean_grn %>%
     n_target_down       = n_distinct(gene_id[!is.na(target_lfc) & target_lfc < 0]),
     n_activation_edges  = sum(direction == "activation", na.rm=TRUE),
     n_repression_edges  = sum(direction == "repression", na.rm=TRUE),
-    mean_bio_edge_score = mean(biological_edge_score, na.rm=TRUE),
-    tf_lfc              = first(tf_lfc),
+    mean_bio_edge_score = mean(biological_edge_score, na.rm=TRUE),      homer_qval_enriched = first(homer_qval_enriched),    tf_lfc              = first(tf_lfc),
     tf_is_expressed     = first(tf_is_expressed),
     tf_is_deg           = first(tf_is_deg),
     .groups = "drop"
   ) %>%
   arrange(desc(n_tier1_targets))
 
-write.csv(active_hubs, "top_TF_Biological_Hubs_promoter.csv", row.names = FALSE)
+write.csv(active_hubs, file.path(OUTPUT_DIR, "02_Top_Active_Hubs_promoter.csv"), row.names = FALSE)
 
 # 6. PLOT THE CLEAN NETWORK
 if(nrow(clean_grn) > 0) {

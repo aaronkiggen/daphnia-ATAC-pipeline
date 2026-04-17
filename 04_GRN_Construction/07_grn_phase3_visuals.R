@@ -5,7 +5,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-BASE_DIR  <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output"
+BASE_DIR  <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 setwd(BASE_DIR)
 
 cat("==== Starting Phase 3: Paper Visualizations & Cytoscape Export ====\n")
@@ -16,14 +16,8 @@ for (tier in tiers) {
   cat(sprintf("\n--- Processing %s tier ---\n", toupper(tier)))
   
   # 1. LOAD PHASE 2 OUTPUTS
-  # Check if the distal file exists without the suffix or with it
-  if(tier == "distal") {
-     hubs_file <- "top_TF_Biological_Hubs.csv"
-     edges_file <- "GRN_Biological_Edges_Tier1_Only.csv"
-  } else {
-     hubs_file <- paste0("top_TF_Biological_Hubs_", tier, ".csv")
-     edges_file <- paste0("GRN_Biological_Edges_Tier1_Only_", tier, ".csv")
-  }
+  hubs_file <- paste0("02_Top_Active_Hubs_", tier, ".csv")
+  edges_file <- paste0("02_Filtered_Bio_Network_Edges_HighConf_", tier, ".csv")
   
   if (!file.exists(hubs_file) | !file.exists(edges_file)) {
     cat(sprintf("Missing Phase 2 outputs for %s. Skipping...\n", tier))
@@ -61,7 +55,7 @@ for (tier in tiers) {
         y = "Transcription Factor"
       )
     
-    ggsave(paste0("Fig1_Master_Regulators_Bubble_", tier, ".pdf"), p_bubble, width = 9, height = 7)
+    ggsave(paste0("03_Plot_Hub_Enrichment_", tier, ".pdf"), p_bubble, width = 9, height = 7)
   }
   
   # ------------------------------------------------------------------------------
@@ -76,7 +70,7 @@ for (tier in tiers) {
     select(source = tf_name, target = gene_id, interaction = direction, weight = biological_edge_score) %>%
     mutate(norm_weight = weight / max(weight, na.rm=TRUE))
   
-  write.csv(cyto_edges, paste0("Cytoscape_Edges_Top5_MRs_", tier, ".csv"), row.names = FALSE)
+  write.csv(cyto_edges, paste0("03_Cyto_RawNetwork_Edges_Top5_", tier, ".csv"), row.names = FALSE)
   
   sources <- edges %>%
     filter(tf_name %in% top_tfs_for_network) %>%
@@ -115,7 +109,7 @@ for (tier in tiers) {
       cat(" -> Injected GO Enrichment terms into Nodes table!\n")
   }
   
-  write.csv(cyto_nodes, paste0("Cytoscape_Nodes_Top5_MRs_", tier, ".csv"), row.names = FALSE)
+  write.csv(cyto_nodes, paste0("03_Cyto_RawNetwork_Nodes_Top5_", tier, ".csv"), row.names = FALSE)
 }
 
 cat("\n==== Phase 3 Complete! ====\n")

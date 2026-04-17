@@ -6,7 +6,7 @@ library(ggplot2)
 options(stringsAsFactors = FALSE)
 
 # 1. Paths
-BASE_DIR  <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output"
+BASE_DIR  <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 GO_FILE   <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/combined_go_annotations.csv"
 OUT_DIR   <- file.path(BASE_DIR, "GO_enrichment_results")
 

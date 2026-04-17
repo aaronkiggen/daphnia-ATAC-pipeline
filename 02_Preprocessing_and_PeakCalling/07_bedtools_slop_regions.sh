@@ -37,7 +37,7 @@ awk -v OFS='\t' '{
 # Generate windows
 bedtools slop -i DEGs.bed -g $CHROM_SIZES -l 2000 -r 2000 -s > DEG_promoters.bed
 bedtools slop -i DEGs.bed -g $CHROM_SIZES -l 5000 -r 2000 -s > DEG_proximal.bed
-bedtools slop -i DEGs.bed -g $CHROM_SIZES -b 50000 > DEG_distal.bed
+bedtools slop -i DEGs.bed -g $CHROM_SIZES -b 20000 > DEG_distal.bed
 
 echo "Step 2: Intersecting..."
 bedtools intersect -a $CONSENSUS -b DEG_promoters.bed -u > peaks_near_DEG_promoters.bed

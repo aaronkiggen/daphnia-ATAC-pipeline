@@ -12,5 +12,5 @@ conda activate /data/leuven/354/vsc35429/miniconda3/envs/atac_motif_env
 
 cd /scratch/leuven/354/vsc35429/ATAC/TF_analysis
 
-Rscript /user/leuven/354/vsc35429/DATA/PhD/ATAC/atac_TF_GRN_promoter.R
-Rscript /user/leuven/354/vsc35429/DATA/PhD/ATAC/atac_TF_GRN_Phase2_promoter.R
+Rscript /user/leuven/354/vsc35429/DATA/PhD/ATAC/ATAC_Pipeline_GitHub/04_GRN_Construction/02_grn_phase1_promoter.R
+Rscript /user/leuven/354/vsc35429/DATA/PhD/ATAC/ATAC_Pipeline_GitHub/04_GRN_Construction/05_grn_phase2_promoter.R

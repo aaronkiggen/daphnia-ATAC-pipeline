@@ -1,4 +1,6 @@
 #!/bin/bash
+#SBATCH --cluster=wice
+#SBATCH -A lp_svbelleghem
 #SBATCH --job-name=grn_val
 #SBATCH --output=/scratch/leuven/354/vsc35429/ATAC/logs/grn_validation_%j.out
 #SBATCH --error=/scratch/leuven/354/vsc35429/ATAC/logs/grn_validation_%j.err

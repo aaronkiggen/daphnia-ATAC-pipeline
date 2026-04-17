@@ -16,9 +16,10 @@ library(tidyr)
 BASE_DIR  <- "/scratch/leuven/354/vsc35429/ATAC"
 WORK_DIR  <- file.path(BASE_DIR, "TF_analysis")
 setwd(WORK_DIR)
+OUTPUT_DIR <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 
 HOMER_DEFAULT  <- "homer_out_default_promoter/knownResults.txt"
-HOMER_CUSTOM   <- "homer_out_custom_promoter/knownResults.txt"
+HOMER_CUSTOM   <- "homer_out_custom_bg_promoter/knownResults.txt"
 FIMO_TXT       <- "fimo_promoter/fimo.txt"   # Note: Changed to fimo.txt from previous pipeline
 PEAKS_BED      <- "peaks_near_DEG_promoters.bed"   
 DEGS_CSV       <- "DEGs.csv"
@@ -56,7 +57,7 @@ read_homer_results <- function(path, label) {
 homer_default <- read_homer_results(HOMER_DEFAULT, "default")
 homer_custom  <- read_homer_results(HOMER_CUSTOM,  "custom")
 
-homer_all <- bind_rows(homer_default, homer_custom) %>%
+homer_all <- homer_custom %>%
   group_by(tf_name) %>%
   slice_min(qval, n=1, with_ties=FALSE) %>%
   ungroup()
@@ -66,7 +67,7 @@ homer_enriched <- homer_all %>%
   arrange(log_pval)
 
 cat("HOMER enriched TFs (q<0.05, >5% peaks):", nrow(homer_enriched), "\n")
-write.csv(homer_enriched, "homer_enriched_TFs_promoter.csv", row.names=FALSE)
+write.csv(homer_enriched, file.path(OUTPUT_DIR, "01_Enriched_Motifs_TFs_promoter.csv"), row.names=FALSE)
 
 # ── FIMO & TF Mapping ───────────────────────────────────────────────
 fimo_raw <- read.table(FIMO_TXT, sep="\t", header=TRUE, comment.char="")
@@ -88,6 +89,14 @@ fimo <- fimo_raw %>%
 
 # Fallback: if TF name isn't found, keep Motif_ID
 fimo$tf_name <- coalesce(fimo$tf_name, as.character(fimo$motif_id))
+
+# Identify which TFs passed strict FDR < 0.05
+homer_qval_ids <- homer_all %>% filter(qval < 0.05, pct_target_num > 5) %>% pull(tf_name)
+homer_qval_names <- tf_dict %>% filter(motif_id %in% homer_qval_ids) %>% pull(tf_name)
+
+# Tag ALL fimo edges with this boolean flag
+fimo <- fimo %>% 
+  mutate(homer_qval_enriched = motif_id %in% homer_qval_ids | tf_name %in% homer_qval_names | tf_name %in% homer_qval_ids)
 
 # Filter FIMO edges EXCLUSIVELY to motifs HOMER found to be enriched (Uncorrected p-value for leniency, or q-value)
 # We fall back to p-value < 0.01 because ATAC genomic backgrounds still harshly penalize q-values.
@@ -124,34 +133,17 @@ cat("FIMO hits mapped back to BED peaks:", nrow(fimo_with_peaks), "\n")
 
 # ── Pre-calculated Peak → DEG overlaps ────────────────────────────────────────
 
-# We load the largest window (distal) to use as the base skeleton mapping.
-peak_gene_distal <- read.table("peak_DEG_overlaps_distal.txt", 
+# Because spatial peak sets are mutually exclusive (Russian doll subtraction),
+# we only need to load the specific tier this script is evaluating.
+peak_gene_raw <- read.table("peak_DEG_overlaps_promoter.txt", 
                                col.names = c("p_chr", "p_start", "p_end", "g_chr", "g_start", "g_end", "gene_id", "g_score", "g_strand", "overlap_bp"),
                                stringsAsFactors = FALSE)
 
 peak_gene <- data.frame(
-  peak_id  = paste0(peak_gene_distal$p_chr, ":", peak_gene_distal$p_start, "-", peak_gene_distal$p_end),
-  gene_id  = peak_gene_distal$gene_id
-) %>% distinct() 
-
-# Tier 2: Local (±10kb of gene body)
-peak_gene_local <- read.table("peak_DEG_overlaps_local.txt", 
-                              col.names = c("p_chr", "p_start", "p_end", "g_chr", "g_start", "g_end", "gene_id", "g_score", "g_strand", "overlap_bp"),
-                              stringsAsFactors = FALSE)
-
-# Tier 1: Promoter (upstream 2kb, downstream 500)
-peak_gene_prom <- read.table("peak_DEG_overlaps_promoter.txt", 
-                             col.names = c("p_chr", "p_start", "p_end", "g_chr", "g_start", "g_end", "gene_id", "g_score", "g_strand", "overlap_bp"),
-                             stringsAsFactors = FALSE)
-
-local_set <- paste0(peak_gene_local$p_chr, ":", peak_gene_local$p_start, "-", peak_gene_local$p_end, "__", peak_gene_local$gene_id)
-prom_set  <- paste0(peak_gene_prom$p_chr, ":", peak_gene_prom$p_start, "-", peak_gene_prom$p_end, "__", peak_gene_prom$gene_id)
-
-peak_gene$tier <- case_when(
-  paste(peak_gene$peak_id, peak_gene$gene_id, sep="__") %in% prom_set  ~ "Tier1_Promoter",
-  paste(peak_gene$peak_id, peak_gene$gene_id, sep="__") %in% local_set ~ "Tier2_Local",
-  TRUE ~ "Tier3_Distal"
-)
+  peak_id  = paste0(peak_gene_raw$p_chr, ":", peak_gene_raw$p_start, "-", peak_gene_raw$p_end),
+  gene_id  = peak_gene_raw$gene_id,
+  tier     = "Tier1_Promoter"
+) %>% distinct()
 
 # ════════════════════════════════════════════════════════════════════════════════
 # 3.  ASSEMBLE GRN EDGE TABLE
@@ -172,7 +164,7 @@ grn_edges <- grn_raw %>%
   ) %>%
   arrange(desc(edge_score))
 
-write.csv(grn_edges, "GRN_edges_promoter.csv", row.names=FALSE)
+write.csv(grn_edges, file.path(OUTPUT_DIR, "01_Base_Motif_Network_Edges_promoter.csv"), row.names=FALSE)
 
 # ════════════════════════════════════════════════════════════════════════════════
 # 4.  TOP TF TABLE
@@ -191,7 +183,7 @@ top_tfs <- grn_edges %>%
   ) %>%
   arrange(desc(n_targets))
 
-write.csv(top_tfs, "top_TF_candidates_promoter.csv", row.names=FALSE)
+write.csv(top_tfs, file.path(OUTPUT_DIR, "01_Candidate_TFs_Summary_promoter.csv"), row.names=FALSE)
 
 cat("\nNetwork edge count:", nrow(grn_edges), "- Hubs saved to top_TF_candidates_promoter.csv\n")
 # Plotting block omitted for brevity... (paste your exact plotting code here on line 170)

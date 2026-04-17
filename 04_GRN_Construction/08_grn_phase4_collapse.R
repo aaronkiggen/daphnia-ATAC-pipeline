@@ -4,12 +4,12 @@
 library(dplyr)
 
 tiers <- c("promoter", "proximal", "distal")
-output_dir <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output"
+output_dir <- "/user/leuven/354/vsc35429/DATA/PhD/ATAC/output_custom_background"
 
 for (tier in tiers) {
   cat("\n--- Collapsing", tier, "tier ---\n")
   
-  edge_file <- file.path(output_dir, paste0("GRN_Biological_Edges_All_", tier, ".csv"))
+  edge_file <- file.path(output_dir, paste0("02_Filtered_Bio_Network_Edges_All_", tier, ".csv"))
   if (!file.exists(edge_file)) {
     cat("Missing", edge_file, "- skipping.\n")
     next
@@ -70,8 +70,8 @@ for (tier in tiers) {
     select(node_id, node_type, lfc, padj)
   
   # Export final files WITHOUT quotes to fix Cytoscape strict matching
-  write.csv(top_edges, file.path(output_dir, paste0("Cytoscape_Collapsed_Edges_All_DEG_", tier, ".csv")), row.names = FALSE, quote = FALSE)
-  write.csv(nodes, file.path(output_dir, paste0("Cytoscape_Collapsed_Nodes_All_DEG_", tier, ".csv")), row.names = FALSE, quote = FALSE)
+  write.csv(top_edges, file.path(output_dir, paste0("04_Cyto_Collapsed_Edges_All_DEGTFs_", tier, ".csv")), row.names = FALSE, quote = FALSE)
+  write.csv(nodes, file.path(output_dir, paste0("04_Cyto_Collapsed_Nodes_All_DEGTFs_", tier, ".csv")), row.names = FALSE, quote = FALSE)
   cat("Exported Collapsed Cytoscape Networks!\n")
 }
 cat("\n==== Phase 4 Complete! ====\n")
