@@ -154,7 +154,8 @@ Rscript run_enrichment.R
 ## Daphnia-Specific Reference Data and Database Versions
 
 - **Genome/annotation:** GCA_030254905.1_UOB_LRV0_1 — always download latest from NCBI link above
-- **Motif db:** Built from JASPAR2026, CIS-BP 2022, subject to unique curation with Daphnia motif extraction, redundancy filtering, standardized motif naming
+- **Motif db:** Built from  JASPAR 2026 full CORE non-redundant (https://jaspar2026.elixir.no/download/data/2026/CORE/JASPAR2026_CORE_non-redundant_pfms_meme.txt), CIS-BP 2022 D. pulex (https://cisbp.ccbr.utoronto.ca/tmp/Daphnia_pulex_2026_04_08_11:43_am.zip) (needs to be converted to MEME format first), JASPAR metadata (needed for TF name → species mapping later) (https://mencius.uio.no/JASPAR/JASPAR_metadata/2026/ultimate_metadata_table_CORE.tsv)
+=> COMBINED CISBP AND JASPAR DATABASE => USE TOMTOM TO REDUCE REDUNDANT MOTIFS => MEME2HOMER TO CONVERT THE THE COMBINED MEME DATABASE TO HOMER FORMAT
 - All database versions, download URLs, and file hashes (where possible) are tracked in the pipeline scripts and this README.
 
 For full reproducibility, see the `01_Environment_Setup` and `build_motif_db.sh` scripts in the repo.
