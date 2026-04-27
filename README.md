@@ -4,49 +4,20 @@ This repository contains the complete, automated workflow for analyzing ATAC-seq
 
 ## Pipeline Structure
 
-The pipeline is organized sequentially into the following main steps. Each step is performed manually from the command line and designed specifically for Daphnia magna.
-
----
-
-## Input Requirements
-
-- **Raw FASTQ files** (paired-end ATAC-seq libraries from *Daphnia magna*)
-- **Genome and annotation files:**
-  - Genome assembly: GCA_030254905.1_UOB_LRV0_1 (GFF, GTF, FASTA)
-    - Download: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/030/254/905/GCA_030254905.1_UOB_LRV0_1/
-- **Motif databases** (custom, Daphnia-focused):
-  - Derived from JASPAR2026 vertebrate/invertebrate (https://jaspar.genereg.net/downloads/) and CIS-BP 2022 (http://cisbp.ccbr.utoronto.ca/)
-  - Processed using in-house scripts for nonredundancy and Daphnia curation.
-  - Key files required:
-    - motif_databases/fixed_homer.motif
-    - motif_databases/combined_nonredundant.meme
-    - motif_databases/motif_to_TF_name.txt
-    - motif_databases/JASPAR2026_metadata.tsv
-- **Protein BLAST database:**
-  - Daphnia magna protein FASTA (from reference above)
-- **RNA-seq DEG output**: (e.g., `DEGs.csv`) for network correlation
-
----
+The pipeline is organized sequentially into five main steps:
 
 ### `01_Environment_Setup`
 Scripts for building isolated, reproducible Conda environments used across the analysis, including tools for motif discovery and R-based functional enrichment packages (like `clusterProfiler`).
-Run these scripts before any other step to ensure all dependencies are available.
-
----
 
 ### `02_Preprocessing_and_PeakCalling`
-Core ATAC-seq pre-processing steps for Daphnia magna:
-- Read trimming, alignment (against the supplied reference), Tn5 shift correction
-- Peak calling using MACS2
-- Generation of Consensus Peaks
-- Evaluation of TSS enrichment profiles and assignment of regulatory tiers via `bedtools`
-
-Output: Chromatin peak BED files for subsequent motif and regulatory analysis.
-
----
+Core ATAC-seq pre-processing steps:
+- Read trimming, alignment, and shifting (accounting for Tn5 insertion).
+- Peak calling using MACS2.
+- Generating Consensus Peaks and evaluating TSS enrichment profiles.
+- Defining functional regulatory tiers using `bedtools` (Promoter, Proximal, and Distal regions).
 
 #### Spatial Tiering and "Russian Doll" Subtraction
-When defining functional regulatory tiers (Promoter, Proximal, Distal) and generating HOMER background regions, the pipeline uses a strict "Russian doll" subtraction method to ensure mutual exclusivity:
+When defining functional regulatory tiers (Promoter, Proximal, Distal) and generating HOMER background regions, the pipeline uses a strict "Russian doll" subtraction method to ensure mutual exclusivity of ATAC peaks (`07_bedtools_slop_regions.sh` and `08_make_homer_background.sh`). A peak can only belong to one category:
 1. **Promoter (0-2kb):** Peaks intersecting the 2kb upstream/downstream window.
 2. **Proximal (2-5kb):** Peaks in the 5kb window, *minus* any peaks already assigned to the Promoter.
 3. **Distal (5-50kb):** Peaks in the 50kb window, *minus* any peaks already assigned to the Proximal/Promoter groups.
@@ -54,112 +25,150 @@ When defining functional regulatory tiers (Promoter, Proximal, Distal) and gener
 **Why is this important?** 
 HOMER calculates statistical motif enrichment by comparing a foreground (e.g., DEG peaks) against a background (e.g., non-DEG peaks). If spatial windows overlapped (e.g., if the Proximal window still contained Promoter sequences), the statistical analysis would suffer from "signal dilution" (promoter-specific GC-rich motifs washing out enhancer-specific signals). By utilizing strict subtraction logic (`bedtools intersect -v`) uniformly across both foreground and background generation, we ensure a perfect "apples-to-apples" comparison. This prevents false positives and isolates motifs that are uniquely driving expression in that exact spatial tier.
 
----
-
 ### `03_Motif_Discovery`
-Identification of Transcription Factor binding sites within the open chromatin peaks utilizing HOMER and FIMO (using custom Daphnia motif sets), mapped across the spatially tiered regulatory regions.
-- Input: Tiered peak BED files, custom motif databases.
-- Output: Table of site/region-to-motif mappings, motif enrichment summaries per tier.
-
----
+Identification of Transcription Factor binding sites within the open chromatin peaks utilizing HOMER and FIMO, mapped across the spatially tiered regulatory regions.
 
 ### `04_GRN_Construction`
-R scripts and wrappers to build co-expression networks, map motifs to actual Daphnia gene IDs, identify Master Regulators, and collapse orthologs/hubs. Typical order:
-
-- **00_grn_phase0_ortholog_mapping.R** —
-  - Maps motif names to Daphnia gene orthologs using Uniprot ID linkage and BLASTP.
-  - Produces `tf_ortholog_mapping.csv`. **Run this first!**
-- **05_grn_phase2_promoter.R**, **06_grn_phase2_proximal.R**, **07_grn_phase2_distal.R** —
-  - Builds the biological gene regulatory network for each spatial tier by relating motif hits to DEG-corrected gene IDs.
-  - Requires `tf_ortholog_mapping.csv` and motif mapping output.
-- **08_grn_phase4_collapse.R** —
-  - Collapses redundant mammalian motif models onto unique Daphnia gene IDs for master regulator identification.
-- **rename_outputs.sh**, **rename_pipeline_scripts.sh** — (optional) Helpers to standardize file naming throughout phases.
-
-#### Main Inputs/Outputs in this phase:
-- Inputs: Motif region mapping results, `tf_ortholog_mapping.csv`, DEGs.csv
-- Outputs: Per-tier GRN network .csv files, master regulator tables, Cytoscape node/edge tables, collapsed hub files
+R pipelines and execution wrappers to build co-expression networks and identify Master Regulators:
+- **Phase 1**: Correlating TF motif presence with target gene expression expression.
+- **Phase 2**: Pruning the network and identifying topological hubs.
+- **Phase 3**: Identifying global Master Regulators and formatting multi-tier outputs for Cytoscape visualization.
 
 **Statistical Transparency & Motif Rescue (`homer_qval_enriched` column):**
-To ensure full statistical transparency (especially for distal enhancers subject to strong multiple testing), the pipeline records if motifs fail standard FDR correction and tracks them for downstream reference (`homer_qval_enriched` in all output tables).
-
----
+To ensure full statistical transparency—especially for distal enhancers subject to severe multiple testing penalties—the pipeline natively rescues motifs that fail strict False Discovery Rate (FDR) correction but still exhibit strong uncorrected significance (`pval <= 0.01`). 
+- The initial `01_Enriched_Motifs_TFs_*.csv` outputs explicitly list **all** successfully rescued motifs alongside a `significance_level` column, documenting whether they passed by strict FDR (`qval < 0.05`) or uncorrected `pval <= 0.01`.
+- This distinction is explicitly tracked upstream and appended as a boolean `homer_qval_enriched` (`TRUE`/`FALSE`) column definitively onto every downstream generated output table (including `01_Base_Motif_Network_Edges_*.csv` and `02_Top_Active_Hubs_*.csv`). This provides immediate clarity for researchers on which Master Regulators were fiercely enriched strictly by their structural sequence alone (`TRUE`) versus those structural family fallbacks rescued by more lenient p-values but ultimately biologically validated downstream via true RNA-seq expression changes (`FALSE`).
 
 ### `05_Functional_Enrichment`
-Hypergeometric (GO/KEGG/interpro) enrichment tests for target genes bound by top Master Regulators.
-- Input: Hub/GRN target gene lists from previous step
-- Output: Enrichment results tables, summary plots per regulator/gene set
-
----
+Hypergeometric GO enrichment mapping of the target genes bound by top Master Regulators, validated across multiple annotation databases (EggNOG, InterPro, Fantasia).
 
 ### `06_Misc_Scratch_Scripts`
-Additional scripts for QC, formatting, and ad-hoc investigation.
-- Example: `find_missing_mr.R` examines master regulators not mapped to DEGs.
-- `run_mapping.sh`: Example SLURM job and conda activation for reproducibility
-
----
+Additional quality control, formatting, and intermediate test scripts used during pipeline structuring and testing.
 
 ## Execution
-Scripts are numbered and named for manual, ordered execution. You must:
-1. Complete environment setup (`01_Environment_Setup`).
-2. Run all preprocessing and peak calling scripts for your raw ATAC-seq data (see `02_` directory scripts; adapt paths/input as needed).
-3. Proceed to motif discovery; ensure required motif DBs and genome are in place (see `03_`).
-4. Move to GRN construction scripts in order (see above) — always run ortholog mapping first after motif discovery.
-5. After network construction and hub collapsing, proceed to 05_Functional_Enrichment for GO analysis.
-6. Use supporting scripts as needed for QC/update/renaming.
+Scripts are numbered in their required execution order. Environmental setup (`01_Environment_Setup`) must be successfully completed before executing jobs in the SLURM HPC environment.
+### Collapsed Ortholog Hierarchy (`Phase 4`)
+The pipeline natively searches for TFs via mammalian motif databases (e.g. `FOXI1`, `FOXM1`). Because these mammalian variants evolved from single ancestral genes, Phase 4 deduplicates the redundant models and statistically collapses them back into clean, unique *Daphnia* Master Regulator gene IDs.
 
-Each script may require some adaptation for path and file locations; check the script headers for expected files.
+## Reference Data and Database Versions
+
+To ensure full reproducibility and clarity for publication, all reference genomes, annotation files, motif databases, and functional annotation resources used in this pipeline are listed below with their exact version and download source:
+
+### Genomes & Annotation
+- **Daphnia magna reference genome:**
+  - GCA_030254905.1_UOB_LRV0_1 (GFF, GTF, FASTA)
+  - Download: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/030/254/905/GCA_030254905.1_UOB_LRV0_1/
+
+
+### Motif Databases
+- **HOMER Motif Database:**
+  - Custom build based on JASPAR 2022 (vertebrates/invertebrates) and CIS-BP (2022 release)
+  - File: `motif_databases/fixed_homer.motif`
+  - Download: https://jaspar.genereg.net/downloads/ (JASPAR2022), http://cisbp.ccbr.utoronto.ca/
+- **Motif-to-TF mapping:**
+  - File: `motif_databases/motif_to_TF_name.txt`
+  - Generated from JASPAR/CIS-BP annotation tables (see `build_motif_db.sh`)
+
+
+### Software/Tools
+- **HOMER:** v4.11
+- **bedtools:** v2.30.0
+- **MACS2:** v2.2.7.1
+- **R:** v4.3.3 (with Bioconductor, dplyr, clusterProfiler, etc.)
+- **FIMO (MEME Suite):** v5.4.1
+- **Conda environment:** See `01_Environment_Setup/` scripts for exact package versions
 
 ---
 
-### Example Workflow (Manual):
+### Motif Database File Descriptions
 
-```bash
-# 1. Setup
-cd 01_Environment_Setup
-bash setup_conda_envs.sh # or your custom script here
+- **cisbp_daphnia.meme**: MEME-format motif file containing Daphnia-specific motifs from the CIS-BP database, curated for use in motif scanning and enrichment analyses.
+- **cisbp_daphnia_raw**: Raw/unprocessed motif data from CIS-BP for Daphnia, possibly used as an intermediate before format conversion or redundancy filtering.
+- **cisbp_daphnia_pulex.zip**: Original ZIP archive downloaded from CIS-BP containing Daphnia pulex motif data and metadata.
+- **combined_nonredundant.meme**: MEME-format file with all motifs (from JASPAR, CIS-BP, etc.) merged and filtered to remove redundant motifs, for comprehensive motif discovery.
+- **combined_nonredundant_homer.motif**: HOMER-format version of the nonredundant motif set, used directly by HOMER for motif enrichment.
+- **combined_raw.meme**: MEME-format file with all raw motifs combined (before redundancy filtering), used for initial database construction or QC.
+- **fixed_homer.motif**: Final, curated HOMER-format motif database used in the pipeline; contains nonredundant, high-confidence motifs from JASPAR2026 and CIS-BP.
+- **JASPAR2026_CORE_all.meme**: MEME-format file containing all core motifs from the JASPAR 2026 release (vertebrates/invertebrates), used as a primary motif source.
+- **JASPAR2026_metadata.tsv**: Metadata table for JASPAR2026 motifs, including motif IDs, TF names, species, and references; used for annotation and mapping.
+- **motif_to_TF_name.txt**: Tab-delimited mapping file linking motif IDs to transcription factor gene names, generated from JASPAR/CIS-BP annotation tables.
+- **redundant_motif_ids.txt**: List of motif IDs identified as redundant and removed from the final database, for transparency and reproducibility.
 
-# 2. Preprocessing & Peak Calling
-cd ../02_Preprocessing_and_PeakCalling
-bash run_preprocessing.sh # or your provided main script
+---
 
-# 3. Motif Discovery
-cd ../03_Motif_Discovery
-Rscript run_motif_discovery.R
+## Example Output Directory Structure
 
-# 4. GRN Construction
-cd ../04_GRN_Construction
-Rscript 00_grn_phase0_ortholog_mapping.R
-Rscript 05_grn_phase2_promoter.R
-Rscript 06_grn_phase2_proximal.R
-Rscript 07_grn_phase2_distal.R
-Rscript 08_grn_phase4_collapse.R
+A typical output directory tree after running the full pipeline might look like:
 
-# 5. Functional Enrichment
-cd ../05_Functional_Enrichment
-Rscript run_enrichment.R
+```
+ATAC_Pipeline_Output/
+├── 01_Preprocessing_and_PeakCalling/
+│   ├── consensus_peaks.bed
+│   ├── promoter_peaks.bed
+│   ├── proximal_peaks.bed
+│   └── distal_peaks.bed
+├── 03_Motif_Discovery/
+│   ├── motif_enrichment_promoter.csv
+│   ├── motif_enrichment_proximal.csv
+│   ├── motif_enrichment_distal.csv
+│   ├── motif_region_mapping_promoter.csv
+│   └── ...
+├── 04_GRN_Construction/
+│   ├── 01_Base_Motif_Network_Edges_promoter.csv
+│   ├── 01_Base_Motif_Network_Edges_proximal.csv
+│   ├── 01_Base_Motif_Network_Edges_distal.csv
+│   ├── 02_Top_Active_Hubs_promoter.csv
+│   ├── 02_Top_Active_Hubs_proximal.csv
+│   ├── 02_Top_Active_Hubs_distal.csv
+│   ├── Cytoscape_nodes.csv
+│   ├── Cytoscape_edges.csv
+│   └── ...
+├── 05_Functional_Enrichment/
+│   ├── go_enrichment_hubs.csv
+│   ├── kegg_enrichment_hubs.csv
+│   └── enrichment_summary_plots.pdf
+└── logs/
+    ├── motif_discovery.log
+    └── grn_construction.log
 ```
 
 ---
 
-## Typical Output Structure
-- Peak BED and motif enrichment files per regulatory tier
-- Motif region/sequence mapping tables
-- GRN network .csv tables (per regulatory region)
-- Master regulator results / Cytoscape node and edge tables
-- Functional enrichment tables and summary plots
+## Example Output Table Snippets
+
+**Motif Enrichment Table (motif_enrichment_promoter.csv):**
+| motif_id | tf_name | pval | qval | region | homer_qval_enriched |
+|----------|--------|------|------|--------|---------------------|
+| MA1234.1 | FOXO1  | 1e-6 | 0.01 | promoter | TRUE |
+| MA5678.1 | GATA1  | 2e-4 | 0.07 | promoter | FALSE |
+
+**GRN Edge Table (01_Base_Motif_Network_Edges_promoter.csv):**
+| source_tf | target_gene | motif_id | region | confidence_score |
+|-----------|-------------|----------|--------|------------------|
+| FOXO1     | DmagGene1   | MA1234.1 | promoter | 0.92 |
+| GATA1     | DmagGene2   | MA5678.1 | promoter | 0.85 |
+
+**Functional Enrichment Table (go_enrichment_hubs.csv):**
+| regulator | gene_set | go_term | pval | qval | description |
+|-----------|----------|---------|------|------|-------------|
+| FOXO1     | set1     | GO:0006355 | 1e-5 | 0.01 | regulation of transcription |
 
 ---
 
-## Daphnia-Specific Reference Data and Database Versions
+## Pipeline Flowchart
 
-- **Genome/annotation:** GCA_030254905.1_UOB_LRV0_1 — always download latest from NCBI link above
-- **Motif db:** Built from  JASPAR 2026 full CORE non-redundant (https://jaspar2026.elixir.no/download/data/2026/CORE/JASPAR2026_CORE_non-redundant_pfms_meme.txt), CIS-BP 2022 D. pulex (https://cisbp.ccbr.utoronto.ca/tmp/Daphnia_pulex_2026_04_08_11:43_am.zip) (needs to be converted to MEME format first), JASPAR metadata (needed for TF name → species mapping later) (https://mencius.uio.no/JASPAR/JASPAR_metadata/2026/ultimate_metadata_table_CORE.tsv)
-=> COMBINED CISBP AND JASPAR DATABASE => USE TOMTOM TO REDUCE REDUNDANT MOTIFS => MEME2HOMER TO CONVERT THE THE COMBINED MEME DATABASE TO HOMER FORMAT
-- All database versions, download URLs, and file hashes (where possible) are tracked in the pipeline scripts and this README.
+Below is a simplified flowchart of the main pipeline steps and data flow:
 
-For full reproducibility, see the `01_Environment_Setup` and `build_motif_db.sh` scripts in the repo.
+```mermaid
+graph TD
+    A[Raw FASTQ Files] --> B[Preprocessing & Peak Calling]
+    B --> C[Spatial Tiering (Promoter/Proximal/Distal)]
+    C --> D[Motif Discovery (HOMER/FIMO)]
+    D --> E[Motif-to-Region Mapping]
+    E --> F[GRN Construction (R)]
+    F --> G[Master Regulator Identification]
+    G --> H[Functional Enrichment (GO/KEGG/InterPro)]
+    F --> I[Cytoscape Export]
+```
 
 ---
-
-For questions or contributions, please open an issue or contact the repository owner.
