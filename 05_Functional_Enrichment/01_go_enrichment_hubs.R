@@ -17,20 +17,22 @@ dir.create(OUT_DIR, showWarnings = FALSE)
 hubs <- read.csv(file.path(BASE_DIR, "02_Top_Active_Hubs_promoter.csv"), stringsAsFactors = FALSE)
 edges <- read.csv(file.path(BASE_DIR, "04_Cyto_Collapsed_Edges_All_DEGTFs_promoter.csv"), stringsAsFactors = FALSE)
 
-# Select all Master Regulators (TFs that are DEGs) using the mapped Daphnia gene id
-# We require `daphnia_gene_id` to match the collapsed_source values in the collapsed edges file.
-top_mrs <- hubs %>%
-  filter(tf_is_deg == TRUE & !is.na(daphnia_gene_id) & daphnia_gene_id != "") %>%
-  pull(daphnia_gene_id)
+# Select all Master Regulators (TF rows) that are DEGs.
+# We'll perform enrichment per `tf_name` (TF label) but use the mapped `daphnia_gene_id`
+# to look up target genes in the collapsed edges. This ensures TF-specific results
+# even when multiple TF names map to the same OUZ ID.
+tf_rows <- hubs %>%
+  filter(tf_is_deg == TRUE) %>%
+  select(tf_name, daphnia_gene_id)
 
-# If there are no DEG TFs with mapped Daphnia IDs, fallback to the top 5 hubs (use their daphnia_gene_id if available)
-if(length(top_mrs) == 0) {
-  cat("No mapped DE TFs found. Falling back to top 5 hubs (mapped IDs when available)...\n")
-  top_mrs <- hubs %>% head(5) %>% pull(daphnia_gene_id)
-  top_mrs <- top_mrs[!is.na(top_mrs) & top_mrs != ""]
+# If no DE TF rows found, fallback to top 5 hub rows
+if(nrow(tf_rows) == 0) {
+  cat("No DE TF rows found. Falling back to top 5 hub rows...\n")
+  tf_rows <- hubs %>% head(5) %>% select(tf_name, daphnia_gene_id)
 }
 
-cat("Top TFs selected for enrichment:", paste(top_mrs, collapse=", "), "\n")
+cat("TF rows selected for enrichment (tf_name -> daphnia_gene_id):\n")
+print(tf_rows)
 
 # 3. Load and format GO annotations for each tool
 cat("Loading GO annotations...\n")
@@ -52,12 +54,19 @@ tools <- c("eggnog_GO", "interpro_GO", "fantasia_GO")
 # 4. Perform Enrichment for each TF x Tool
 all_results <- list()
 
-for(tf in top_mrs) {
-  cat("\nProcessing TF:", tf, "\n")
-  
-  # Get target genes for this TF
+for(i in seq_len(nrow(tf_rows))) {
+  tf <- tf_rows$tf_name[i]
+  gene_id <- tf_rows$daphnia_gene_id[i]
+  cat("\nProcessing TF:", tf, "->", gene_id, "\n")
+
+  if(is.na(gene_id) || gene_id == "") {
+    cat("  Skipping", tf, "- no mapped daphnia_gene_id available.\n")
+    next
+  }
+
+  # Get target genes for this TF by matching the mapped OUZ ID in collapsed_source
   target_genes <- edges %>% 
-    filter(collapsed_source == tf) %>% 
+    filter(collapsed_source == gene_id) %>% 
     pull(target) %>% 
     unique()
     
@@ -94,7 +103,8 @@ for(tf in top_mrs) {
         p <- dotplot(res, showCategory=15) + 
              ggtitle(paste("GO Enrichment:", tf, "(Targets) -", gsub("_GO", "", tool)))
              
-        plot_file <- file.path(OUT_DIR, paste0(tf, "_", tool, "_dotplot.pdf"))
+        safe_tf <- gsub("[/: ]+", "_", tf)
+        plot_file <- file.path(OUT_DIR, paste0(safe_tf, "_", tool, "_dotplot.pdf"))
         ggsave(plot_file, p, width=8, height=6)
         cat("     Saved plot to", plot_file, "\n")
      } else {

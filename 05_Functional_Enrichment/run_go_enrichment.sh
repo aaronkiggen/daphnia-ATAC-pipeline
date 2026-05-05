@@ -10,12 +10,9 @@
 source ~/.bashrc
 eval "$(conda shell.bash hook)"
 
-# Delete broken env
-rm -rf /data/leuven/354/vsc35429/miniconda3/envs/go_env_final
-
-# Build clean env for plotting and GO
-conda create -y -n go_env_final -c conda-forge -c bioconda r-base=4.3.0 bioconductor-clusterprofiler r-dplyr r-tidyr r-ggplot2 pango
+# We assume go_env_final is already built. If not, uncomment below:
+# conda create -y -n go_env_final -c conda-forge -c bioconda r-base=4.3.0 bioconductor-clusterprofiler r-dplyr r-tidyr r-ggplot2 pango
 conda activate go_env_final
 
-cd /user/leuven/354/vsc35429/DATA/PhD/ATAC/
-Rscript run_go_enrichment_hubs.R
+cd /user/leuven/354/vsc35429/DATA/PhD/ATAC/ATAC_Pipeline_GitHub/05_Functional_Enrichment
+Rscript 01_go_enrichment_hubs.R
