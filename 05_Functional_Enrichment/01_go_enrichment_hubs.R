@@ -12,17 +12,22 @@ OUT_DIR   <- file.path(BASE_DIR, "GO_enrichment_results")
 
 dir.create(OUT_DIR, showWarnings = FALSE)
 
-# 2. Load Top TFs and Edges
-hubs <- read.csv(file.path(BASE_DIR, "top_TF_Biological_Hubs_promoter.csv"))
-edges <- read.csv(file.path(BASE_DIR, "GRN_Biological_Edges_Tier1_Only_promoter.csv"))
+# 2. Load Top TFs and collapsed (collapsed_source) edges
+# We use the collapsed Cytoscape outputs that map Daphnia gene IDs (OUZ56_*)
+hubs <- read.csv(file.path(BASE_DIR, "02_Top_Active_Hubs_promoter.csv"), stringsAsFactors = FALSE)
+edges <- read.csv(file.path(BASE_DIR, "04_Cyto_Collapsed_Edges_All_DEGTFs_promoter.csv"), stringsAsFactors = FALSE)
 
-# Let's select Top 5 Master Regulators (TFs that are DEGs)
-top_mrs <- hubs %>% filter(tf_is_deg == TRUE) %>% head(5) %>% pull(tf_name)
+# Select all Master Regulators (TFs that are DEGs) using the mapped Daphnia gene id
+# We require `daphnia_gene_id` to match the collapsed_source values in the collapsed edges file.
+top_mrs <- hubs %>%
+  filter(tf_is_deg == TRUE & !is.na(daphnia_gene_id) & daphnia_gene_id != "") %>%
+  pull(daphnia_gene_id)
 
-# If there are less than 5 MRs, fallback to Top 5 overall Hubs
-if(length(top_mrs) < 5) {
-   cat("Not enough DE TFs found. Using the top 5 hubs globally...\n")
-   top_mrs <- hubs %>% head(5) %>% pull(tf_name)
+# If there are no DEG TFs with mapped Daphnia IDs, fallback to the top 5 hubs (use their daphnia_gene_id if available)
+if(length(top_mrs) == 0) {
+  cat("No mapped DE TFs found. Falling back to top 5 hubs (mapped IDs when available)...\n")
+  top_mrs <- hubs %>% head(5) %>% pull(daphnia_gene_id)
+  top_mrs <- top_mrs[!is.na(top_mrs) & top_mrs != ""]
 }
 
 cat("Top TFs selected for enrichment:", paste(top_mrs, collapse=", "), "\n")
@@ -52,8 +57,8 @@ for(tf in top_mrs) {
   
   # Get target genes for this TF
   target_genes <- edges %>% 
-    filter(tf_name == tf) %>% 
-    pull(gene_id) %>% 
+    filter(collapsed_source == tf) %>% 
+    pull(target) %>% 
     unique()
     
   if(length(target_genes) < 5) {
