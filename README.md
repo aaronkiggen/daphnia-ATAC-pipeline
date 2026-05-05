@@ -13,7 +13,8 @@ Scripts for building isolated, reproducible Conda environments used across the a
 Core ATAC-seq pre-processing steps:
 - Read trimming, alignment, and shifting (accounting for Tn5 insertion).
 - Peak calling using MACS2.
-- Generating Consensus Peaks and evaluating TSS enrichment profiles.
+- **Generating Consensus Peaks:** Merging peaks detected across biological replicates to create a unified, reproducible peak set. Individual MACS2 peak files are merged using `bedtools merge`, collapsing overlapping peaks from different replicates into single genomic intervals. This approach ensures that only robustly called peaks (present in multiple replicates or high-confidence in individual replicates) are retained for downstream analysis. The consensus peak set eliminates technical noise and provides a robust foundation for motif discovery and regulatory network construction. Output: `consensus_peaks.bed`.
+- Evaluating TSS enrichment profiles to validate ATAC-seq library quality and confirm proper Tn5 shifting.
 - Defining functional regulatory tiers using `bedtools` (Promoter, Proximal, and Distal regions).
 
 #### Spatial Tiering and "Russian Doll" Subtraction
