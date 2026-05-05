@@ -20,7 +20,7 @@ Core ATAC-seq pre-processing steps:
 When defining functional regulatory tiers (Promoter, Proximal, Distal) and generating HOMER background regions, the pipeline uses a strict "Russian doll" subtraction method to ensure mutual exclusivity of ATAC peaks (`07_bedtools_slop_regions.sh` and `08_make_homer_background.sh`). A peak can only belong to one category:
 1. **Promoter (0-2kb):** Peaks intersecting the 2kb upstream/downstream window.
 2. **Proximal (2-5kb):** Peaks in the 5kb window, *minus* any peaks already assigned to the Promoter.
-3. **Distal (5-50kb):** Peaks in the 50kb window, *minus* any peaks already assigned to the Proximal/Promoter groups.
+3. **Distal (5-20kb):** Peaks in the 20kb window, *minus* any peaks already assigned to the Proximal/Promoter groups.
 
 **Why is this important?** 
 HOMER calculates statistical motif enrichment by comparing a foreground (e.g., DEG peaks) against a background (e.g., non-DEG peaks). If spatial windows overlapped (e.g., if the Proximal window still contained Promoter sequences), the statistical analysis would suffer from "signal dilution" (promoter-specific GC-rich motifs washing out enhancer-specific signals). By utilizing strict subtraction logic (`bedtools intersect -v`) uniformly across both foreground and background generation, we ensure a perfect "apples-to-apples" comparison. This prevents false positives and isolates motifs that are uniquely driving expression in that exact spatial tier.
